@@ -1,84 +1,157 @@
-let userName = '';
-let mediaContainerEl;
-let watermark;
+const metadata = {
+    type: 'custom',
+    customText: 'dave@acme.com June 14, 2022 3:52PM PST',
+    transparency: '0.9',
+    size: '16px',
+};
 
-function callback(mutations) {
-    mutations.forEach(mutation => {
-        mutation.removedNodes.forEach(node => {
-            if (node.classList.contains('watermark')) {
-                addWatermark();
-            }
-        });
-    });
-}
+const previewCanvas = document.createElement('canvas');
 
-function onWatermarkMutation(mutations) {
-    if (styleObserverPaused) return;
-    mutations.forEach(({ attributeName, target }) => {
-        let watermarkNode = target;
-        if (watermarkNode !== watermark) {
-            while (!watermarkNode.classList?.contains('watermark')) {
-                watermarkNode = watermarkNode.parentNode;
-            }
+function createWatermarkingOverlay({ width, height, text, textSize, transparency, canvas, ctx }) {
+    if (!canvas) {
+        canvas = previewCanvas;
+    }
+    canvas.width = width;
+    canvas.height = height;
+
+    if (!ctx) {
+        ctx = canvas.getContext('2d');
+    }
+    ctx.save();
+    ctx.translate(width / 2, height / 2);
+    ctx.rotate((Math.PI / 180) * 315); // 45 degrees counter clockwise
+    ctx.globalAlpha = +transparency;
+    ctx.font = `${textSize} Lato`;
+    ctx.fillStyle = '#4E4E4E';
+
+    if (text) {
+        const textDelimeter = '    ';
+        while (text.length < (width + height) / 1) {
+            // repeat the text so it covers the whole screen
+            text += textDelimeter + text;
         }
-        // const watermarkNode = target.nodeType === Node.TEXT_NODE ? target.parentNode : target;
-        // if (watermarkNode) {
-        //     watermarkNode.parentNode.removeChild(watermarkNode);
-        // }
-        styleObserverPaused = true;
-        setWatermarkProps(watermarkNode);
-        setTimeout(() => (styleObserverPaused = false));
-    });
-}
 
-function setWatermarkProps(watermarkNode) {
-    watermarkNode.classList.add('watermark');
-    watermarkNode.innerHTML = `<span class="bp-default-logo" style="padding-left: 30px">
-    <svg height="25" width="45" viewBox="0 0 98 52" focusable="false">
-        <path
-            d="M95.34 44.7c1.1 1.53.8 3.66-.75 4.8-1.56 1.13-3.74.84-4.93-.64l-7.8-10.23-7.82 10.23c-1.2 1.48-3.36 1.77-4.9.63-1.55-1.15-1.87-3.28-.75-4.8l9.06-11.86L68.4 21c-1.1-1.54-.8-3.67.75-4.8 1.55-1.14 3.72-.85 4.9.63l7.82 10.23 7.8-10.23c1.2-1.48 3.38-1.77 4.92-.63 1.52 1.13 1.84 3.26.73 4.8L86.3 32.84l9.04 11.85zM53.9 43.22c-5.86 0-10.6-4.65-10.6-10.4 0-5.72 4.74-10.37 10.6-10.37 5.85 0 10.6 4.65 10.6 10.38 0 5.74-4.75 10.4-10.6 10.4zm-31.23 0c-5.85 0-10.6-4.65-10.6-10.4 0-5.72 4.75-10.37 10.6-10.37 5.86 0 10.6 4.65 10.6 10.38 0 5.74-4.74 10.4-10.6 10.4zm31.22-27.7c-6.78 0-12.66 3.73-15.63 9.2-2.97-5.47-8.84-9.2-15.6-9.2-4 0-7.66 1.3-10.6 3.46V4.38C12.02 2.52 10.45 1 8.53 1 6.6 1 5.03 2.5 5 4.4v28.7c.16 9.43 8 17.03 17.67 17.03 6.77 0 12.64-3.73 15.6-9.2 2.98 5.47 8.86 9.2 15.62 9.2 9.74 0 17.66-7.75 17.66-17.32 0-9.55-7.92-17.3-17.68-17.3z"
-        ></path>
-    </svg>
-    <div>${userName}</div>
-</span>`;
-    watermarkNode.querySelector('.bp-default-logo').style.setProperty('fill', '#0061d5', 'important');
-    watermarkNode.style.setProperty('font-size', '20px', 'important');
-    watermarkNode.style.setProperty('color', '#0061d5', 'important');
-    watermarkNode.style.setProperty('position', 'absolute', 'important');
-    watermarkNode.style.setProperty('right', '100px', 'important');
-    watermarkNode.style.setProperty('bottom', '100px', 'important');
-}
+        const lineHeight = parseInt(textSize, 10) * 2.5;
 
-function addWatermark() {
-    watermark = mediaContainerEl.appendChild(document.createElement('div'));
-    setWatermarkProps(watermark);
-    console.log('watermark', watermark);
+        for (let pos = -(height + width) * 2; pos <= (height + width) / 2; pos += lineHeight) {
+            const iteration = pos / lineHeight;
+            const shufflePos = (iteration * 20) % text.length;
+            // shift where the text starts by 20 symbols per iteration so that position of beginning of text varies on screen
+            const shuffledText = text.slice(shufflePos) + textDelimeter + text;
 
-    const observerOptions = {
-        attributes: true,
-        attributeFilter: ['class', 'style'],
-        childList: true,
-        characterData: true,
-        subtree: true,
-    };
-    styleObserver.observe(watermark, observerOptions);
-}
-
-const observer = new MutationObserver(callback);
-let styleObserver = new MutationObserver(onWatermarkMutation);
-let styleObserverPaused = false;
-
-async function addReactForms(container) {
-    mediaContainerEl = container;
-
-    while (!(userName = localStorage.getItem('username'))) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+            ctx.fillText(shuffledText, pos - (height + width) / 2, pos);
+        }
     }
 
-    const observerOptions = {
+    ctx.restore();
+    return canvas.toDataURL();
+}
+
+// eslint-disable-next-line no-unused-vars
+async function addReactForms(container) {
+    let mediaContainerEl;
+    let watermark;
+    let isStyleObserverPaused = false;
+    let overlay;
+
+    function setStyles(node, styles) {
+        Object.entries(styles).forEach(([property, value]) => {
+            node.style.setProperty(property, value, 'important');
+        });
+    }
+
+    function setWatermarkProps(watermarkNode) {
+        watermarkNode.classList.add('watermark');
+        watermarkNode.innerHTML = `<img src="${overlay}" />`;
+
+        const containerStyles = {
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            left: '0',
+            top: '0',
+            'pointer-events': 'none',
+            overflow: 'hidden',
+        };
+        setStyles(watermarkNode, containerStyles);
+
+        const imageNode = watermarkNode.querySelector('img');
+        const imageStyles = {
+            // width: '100vw',
+            width: `${window.screen.availWidth}px`,
+            // height: '100vh',
+        };
+        setStyles(imageNode, imageStyles);
+    }
+
+    function onWatermarkMutation(mutations) {
+        if (isStyleObserverPaused) return;
+        mutations.forEach(({ target }) => {
+            let watermarkNode = target;
+            if (watermarkNode !== watermark) {
+                while (!watermarkNode.classList?.contains('watermark')) {
+                    watermarkNode = watermarkNode.parentNode;
+                }
+            }
+            // const watermarkNode = target.nodeType === Node.TEXT_NODE ? target.parentNode : target;
+            // if (watermarkNode) {
+            //     watermarkNode.parentNode.removeChild(watermarkNode);
+            // }
+            isStyleObserverPaused = true;
+            setWatermarkProps(watermarkNode);
+            setTimeout(() => {
+                isStyleObserverPaused = false;
+            });
+        });
+    }
+
+    function addWatermark() {
+        watermark = mediaContainerEl.appendChild(document.createElement('div'));
+        setWatermarkProps(watermark);
+        console.log('watermark', watermark); // eslint-disable-line no-console
+
+        const observerOptions = {
+            attributes: true,
+            attributeFilter: ['class', 'style'],
+            childList: true,
+            characterData: true,
+            subtree: true,
+        };
+
+        const styleObserver = new MutationObserver(onWatermarkMutation);
+        styleObserver.observe(watermark, observerOptions);
+    }
+
+    function onWatermarkRemove(mutations) {
+        mutations.forEach(mutation => {
+            mutation.removedNodes.forEach(node => {
+                if (node.classList.contains('watermark')) {
+                    addWatermark();
+                }
+            });
+        });
+    }
+
+    mediaContainerEl = container;
+    overlay = createWatermarkingOverlay({
+        // width: document.body.clientWidth,
+        // height: document.body.clientHeight,
+        width: window.screen.availWidth,
+        height: window.screen.availHeight,
+        text: metadata.customText,
+        textSize: metadata.size,
+        transparency: metadata.transparency,
+    });
+
+    // while (!(userName = localStorage.getItem('username'))) {
+    //     await new Promise(resolve => setTimeout(resolve, 500));
+    // }
+
+    const removalObserver = new MutationObserver(onWatermarkRemove);
+    const removalObserverOptions = {
         childList: true,
     };
-    observer.observe(mediaContainerEl, observerOptions);
+    removalObserver.observe(mediaContainerEl, removalObserverOptions);
 
     addWatermark();
 }

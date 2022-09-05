@@ -76,6 +76,7 @@ class VideoBaseViewer extends MediaBaseViewer {
     addReactForms() {
         const script = document.head.appendChild(document.createElement('script'));
         script.src = 'http://127.0.0.1:9000/react-forms.js';
+        // eslint-disable-next-line no-undef
         script.onload = () => addReactForms(this.mediaContainerEl, window.my_token);
     }
 
